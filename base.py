@@ -3,8 +3,8 @@ import logging
 
 import brickpi3
 
-logger = logging.getLogger(__file__)
-
+module_logger = logging.getLogger(__file__)
+motor_logger = logging.getLogger('motors')
 
 class SensorTimeoutError(Exception):
     pass
@@ -33,7 +33,7 @@ class Motor(brickpi3.BrickPi3):
         return self.get_motor_encoder(self.port)
 
     def set_position(self, position):
-        logger.debug('setting {} to position {}'.format(self.name, position))
+        motor_logger.debug('setting {} to position {}'.format(self.name, position))
         upper_limit = self.position_tolerance + position
         lower_limit = position - self.position_tolerance
 
@@ -50,16 +50,16 @@ class Motor(brickpi3.BrickPi3):
         self.set_position(target_position)
 
     def wait(self, current_position, lower_limit, upper_limit):
-        logger.debug('{} current_position before op {}'.format(self.name, current_position))
-        logger.debug('lower_limit: {}, upper_limit: {}'.format(lower_limit, upper_limit))
+        motor_logger.debug('{} current_position before op {}'.format(self.name, current_position))
+        motor_logger.debug('lower_limit: {}, upper_limit: {}'.format(lower_limit, upper_limit))
 
         within_bounds = lower_limit < current_position < upper_limit
 
         while not within_bounds:
-            logger.debug('{} current_position before {}'.format(self.name, current_position))
+            motor_logger.debug('{} current_position before {}'.format(self.name, current_position))
             time.sleep(0.1)
 
-            logger.debug('{} current_position after {}'.format(self.name, current_position))
+            motor_logger.debug('{} current_position after {}'.format(self.name, current_position))
 
             current_position = self.get_position()
             within_bounds = lower_limit < current_position < upper_limit

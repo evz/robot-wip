@@ -1,5 +1,6 @@
 import time
 import logging
+import logging.config
 import math
 
 import brickpi3
@@ -7,7 +8,9 @@ import brickpi3
 
 from base import Motor, Sensor
 
-logger = logging.getLogger(__file__)
+module_logger = logging.getLogger(__file__)
+sensor_logger = logging.getLogger('sensors')
+motor_logger = logging.getLogger('motors')
 
 
 class SensorTimeoutError(Exception):
@@ -60,7 +63,7 @@ class ColorSensor(Sensor):
 
     def get_normalized_color(self):
         observed_value = self.read_sensor()
-        logger.debug('raw RGB {}, {}, {}'.format(*observed_value[:3]))
+        sensor_logger.debug('raw RGB {}, {}, {}'.format(*observed_value[:3]))
 
         def color_distance(color_tuple_1, color_tuple_2):
             (red1, green1, blue1,) = color_tuple_1
@@ -91,6 +94,8 @@ class Robot(object):
     '''
 
     def __init__(self):
+        self.wait_time = 0.5
+
         self.ultrasonic = Ultrasonic()
         self.color_sensor = ColorSensor()
 
@@ -112,70 +117,69 @@ class Robot(object):
 
         while not value or value > 10:
             value = self.read_sensor(self.ultrasonic)
-            logger.debug('Waiting for cube {}'.format(value))
-            time.sleep(0.2)
+            sensor_logger.debug('Waiting for cube {}'.format(value))
+            time.sleep(self.wait_time)
 
     def read_cube_face(self):
         # self.wait_for_cube()
 
         self.color_sensor_arm.set_position(-475)
         color = self.color_sensor.get_normalized_color()
-        logger.info('color {}'.format(color))
+        sensor_logger.info('color {}'.format(color))
 
         self.color_sensor_arm.set_position_relative(130)
         color = self.color_sensor.get_normalized_color()
-        logger.info('color {}'.format(color))
+        sensor_logger.info('color {}'.format(color))
 
-        self.spinner.set_position_relative(120)
-        time.sleep(0.2)
-        color = self.color_sensor.get_normalized_color()
-        logger.info('color {}'.format(color))
+        # Spin the cube to read all the squares
+        for side in range(7):
 
-        self.spinner.set_position_relative(140)
-        time.sleep(0.2)
-        color = self.color_sensor.get_normalized_color()
-        logger.info('color {}'.format(color))
+            self.spinner.set_position_relative(140)
+            time.sleep(self.wait_time)
 
-        self.spinner.set_position_relative(140)
-        time.sleep(0.2)
-        color = self.color_sensor.get_normalized_color()
-        logger.info('color {}'.format(color))
+            # The corner pieces are a little farther out so we need to adjust for them
+            if side in [0, 2, 4, 6]:
+                self.color_sensor_arm.set_position_relative(60)
+            elif side in [1, 3, 5]:
+                self.color_sensor_arm.set_position_relative(-60)
 
-        self.spinner.set_position_relative(140)
-        time.sleep(0.2)
-        color = self.color_sensor.get_normalized_color()
-        logger.info('color {}'.format(color))
+            time.sleep(self.wait_time)
 
-        self.spinner.set_position_relative(140)
-        time.sleep(0.2)
-        color = self.color_sensor.get_normalized_color()
-        logger.info('color {}'.format(color))
+            color = self.color_sensor.get_normalized_color()
+            sensor_logger.info('color {}'.format(color))
 
-        self.spinner.set_position_relative(140)
-        time.sleep(0.2)
-        color = self.color_sensor.get_normalized_color()
-        logger.info('color {}'.format(color))
-
-        self.spinner.set_position_relative(140)
-        time.sleep(0.2)
-        color = self.color_sensor.get_normalized_color()
-        logger.info('color {}'.format(color))
 
 if __name__ == "__main__":
     import sys
 
-    logger_kwargs = {
-        'format': '%(asctime)s %(module)s.%(lineno)-4s %(levelname)s - %(message)s',
-        'level': logging.INFO,
+    logging_config = {
+        'formatters': {
+            'normal': {
+                'format': '%(asctime)s %(module)s.%(lineno)-4s %(levelname)s - %(message)s',
+                'datefmt' : '%Y-%m-%d %H:%M:%S',
+            }
+        },
+        'handlers': {
+            'console': {
+                'class': 'logging.StreamHandler',
+                'formatter': 'normal',
+                'level': 'DEBUG',
+            }
+        },
+        'loggers': {
+            'sensors': {
+                'level': 'DEBUG',
+                'handlers': ['console'],
+            },
+            'motors': {
+                'level': 'INFO',
+                'handlers': ['console'],
+            },
+        },
+        'version': 1
     }
 
-    try:
-        debug = sys.argv[1]
-        logger_kwargs['level'] = logging.DEBUG
-    except IndexError:
-        pass
-
-    logging.basicConfig(**logger_kwargs)
+    logging.config.dictConfig(logging_config)
 
     robot = Robot()
     robot.reset_motor_positions()
